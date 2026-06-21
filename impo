@@ -1,0 +1,19 @@
+# 1. 装饰器：函数计时器
+import time
+from functools import wraps
+
+def timer(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        result = func(*args, **kwargs)
+        elapsed = time.perf_counter() - start
+        print(f"{func.__name__} 耗时 {elapsed:.6f}s")
+        return result
+    return wrapper
+
+@timer
+def heavy_sum(n):
+    return sum(i * i for i in range(n))
+
+print(heavy_sum(1_000_000))
