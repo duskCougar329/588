@@ -1,0 +1,91 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from typing import List, Tuple, Optional
+
+class Activation:
+    @staticmethod
+    def relu(x): return np.maximum(0, x)
+    @staticmethod
+    def relu_grad(x): return (x > 0).astype(float)
+    @staticmethod
+    def sigmoid(x): return 1 / (1 + np.exp(-np.clip(x, -500, 500)))
+    @staticmethod
+    def sigmoid_grad(x):
+        s = Activation.sigmoid(x)
+        return s * (1 - s)
+    @staticmethod
+    def softmax(x):
+        e = np.exp(x - x.max(axis=1, keepdims=True))
+        return e / e.sum(axis=1, keepdims=True)
+    @staticmethod
+    def tanh(x): return np.tanh(x)
+    @staticmethod
+    def tanh_grad(x): return 1 - np.tanh(x) ** 2
+
+class Layer:
+    def __init__(self, in_dim: int, out_dim: int, activation: str = "relu"):
+        scale = np.sqrt(2.0 / in_dim)  # He initialization
+        self.W = np.random.randn(in_dim, out_dim) * scale
+        self.b = np.zeros((1, out_dim))
+        self.activation = activation
+        self.cache = {}
+        self.dW = np.zeros_like(self.W)
+        self.db = np.zeros_like(self.b)
+        # Adam optimizer state
+        self.mW = np.zeros_like(self.W)
+        self.vW = np.zeros_like(self.W)
+        self.mb = np.zeros_like(self.b)
+        self.vb = np.zeros_like(self.b)
+
+    def forward(self, X: np.ndarray) -> np.ndarray:
+        Z = X @ self.W + self.b
+        self.cache["X"] = X
+        self.cache["Z"] = Z
+        fn = getattr(Activation, self.activation, None)
+        A = fn(Z) if fn else Z
+        self.cache["A"] = A
+        return A
+
+    def backward(self, dA: np.ndarray) -> np.ndarray:
+        X = self.cache["X"]
+        Z = self.cache["Z"]
+        m = X.shape[0]
+        grad_fn = getattr(Activation, self.activation + "_grad", None)
+        dZ = dA * grad_fn(Z) if grad_fn else dA
+        self.dW = X.T @ dZ / m
+        self.db = dZ.mean(axis=0, keepdims=True)
+        return dZ @ self.W.T
+
+class NeuralNetwork:
+    def __init__(self, layer_dims: List[int], activations: List[str], lr=0.001):
+        assert len(activations) == len(layer_dims) - 1
+        self.layers = [
+            Layer(layer_dims[i], layer_dims[i+1], activations[i])
+            for i in range(len(activations))
+        ]
+        self.lr = lr
+        self.t = 0  # Adam timestep
+        self.history = {"loss": [], "acc": []}
+
+    def forward(self, X: np.ndarray) -> np.ndarray:
+        out = X
+        for layer in self.layers:
+            out = layer.forward(out)
+        return out
+
+    def cross_entropy_loss(self, y_pred: np.ndarray, y_true: np.ndarray) -> Tuple[float, np.ndarray]:
+        m = y_true.shape[0]
+        probs = Activation.softmax(y_pred)
+        log_probs = -np.log(probs[np.arange(m), y_true] + 1e-9)
+        loss = log_probs.mean()
+        grad = probs.copy()
+        grad[np.arange(m), y_true] -= 1
+        return loss, grad / m
+
+    def backward(self, grad: np.ndarray):
+        for layer in reversed(self.layers):
+            grad = layer.backward(grad)
+
+    def adam_update(self, beta1=0.9, beta2=0.999, eps=1e-8):
+        self.t += 1
+        for
